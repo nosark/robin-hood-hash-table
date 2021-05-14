@@ -1,5 +1,5 @@
 pub mod rh_hash_table {
-    use std::collections::hash_map::{DefaultHasher, RandomState};
+    use std::collections::hash_map::{DefaultHasher, Keys, RandomState};
     use std::fmt::Display;
     use std::hash::{BuildHasher, Hash, Hasher};
 
@@ -10,7 +10,7 @@ pub mod rh_hash_table {
         probing_sequence_length: i64,
     }
 
-    impl<K: Hash + Clone + Eq, V: Clone> KeyValuePair<K, V> {
+    impl<K: Hash + Clone + Eq + Copy, V: Clone + Copy> KeyValuePair<K, V> {
         pub fn new(key: K, value: V, psl: i64) -> Self {
             Self {
                 key,
@@ -61,7 +61,6 @@ pub mod rh_hash_table {
             while !self.table[hash_id].is_none() {
                 // TODO: unwrap() is naughty refactor for pattern matching, tired and testing
                 // TODO: also refactor cloning
-                // TODO: write tests in morning.
                 if key_value.probing_sequence_length
                     > self.table[hash_id]
                         .as_ref()
@@ -73,14 +72,35 @@ pub mod rh_hash_table {
                     key_value = temp;
                 }
                 key_value.probing_sequence_length += 1;
-                hash_id = hash_id + 1 % self.capacity;
+                hash_id += 1;
+                if hash_id >= self.capacity {
+                    hash_id = 0;
+                }
             }
             self.table[hash_id] = Some(key_value);
             // need to calculate load and check if we're at max load
             // if we are we resize
             self.num_entries += 1;
+
+            let current_load: f64 = self.num_entries as f64 / self.capacity as f64;
+            if current_load >= self.max_load_factor {
+                self.build_resized_table();
+            }
         }
 
+        pub fn build_resized_table(&mut self) {
+            let resized_table: Vec<Option<KeyValuePair<K, V>>> = vec![None; self.capacity * 2];
+            let temp_table = self.table.clone();
+            self.table = resized_table;
+            self.capacity *= 2;
+
+            for i in 0..temp_table.len() {
+                if !temp_table[i].is_none() {
+                    let new_entry = temp_table[i].as_ref().unwrap().clone();
+                    self.insert(new_entry.key, new_entry.value);
+                }
+            }
+        }
         pub fn remove(key: K, value: V) {
             unimplemented!()
         }
@@ -109,7 +129,10 @@ pub mod rh_hash_table {
                     return false;
                 }
                 probing_sequence_len += 1;
-                hash_id = (hash_id + 1) % self.capacity;
+                hash_id += 1;
+                if hash_id >= self.capacity {
+                    hash_id = 0;
+                }
             }
             false
         }
@@ -118,7 +141,7 @@ pub mod rh_hash_table {
 
 #[cfg(test)]
 mod tests {
-    use crate::rh_hash_table::RobinHoodHashTable;
+    use crate::rh_hash_table::{KeyValuePair, RobinHoodHashTable};
     use std::hash::{Hash, Hasher};
 
     #[test]
@@ -127,10 +150,27 @@ mod tests {
     }
 
     #[test]
-    fn insert_test_one() {
-        let mut rht = RobinHoodHashTable::new(0.9, 10);
+    fn insert_test_for_all_cases() {
+        let mut rht = RobinHoodHashTable::new(0.9, 3);
         rht.insert(String::from("pineapple"), 1);
-        let key_exists = rht.contains(String::from("pineapple"));
-        assert_eq!(key_exists, true);
+        assert_eq!(rht.contains(String::from("pineapple")), true);
+
+        rht.insert(String::from("carrot"), 2);
+        rht.insert(String::from("cucumber"), 3);
+
+        assert_eq!(rht.contains(String::from("carrot")), true);
+        assert_eq!(rht.contains(String::from("cucumber")), true);
+    }
+    #[test]
+    fn contains_test_for_search_key_that_exists() {
+        let mut rht = RobinHoodHashTable::new(0.9, 3);
+        rht.insert("pine tree", 1);
+        assert_eq!(rht.contains("pine tree"), true);
+    }
+
+    #[test]
+    fn contains_test_for_search_key_that_doesnt_exist() {
+        let mut rht = RobinHoodHashTable::<KeyValuePair<&str, i64>>::new(0.9, 3);
+        assert_eq!(rht.contains("pine tree"), false);
     }
 }
