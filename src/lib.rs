@@ -101,8 +101,22 @@ pub mod rh_hash_table {
                 }
             }
         }
-        pub fn remove(key: K, value: V) {
-            unimplemented!()
+        pub fn remove(&mut self, key: K) -> bool {
+            let mut hasher = self.hasher_state.build_hasher();
+            key.hash(&mut hasher);
+            let mut hash_id = hasher.finish() as usize % self.capacity;
+            while !self.table[hash_id].is_none() {
+                if self.table[hash_id].as_ref().unwrap().key == key {
+                    self.table[hash_id] = None;
+                    return true;
+                }
+                if hash_id >= self.capacity {
+                    hash_id = 0;
+                    continue;
+                }
+                hash_id += 1;
+            }
+            false
         }
 
         pub fn contains(&mut self, key: K) -> bool {
@@ -172,5 +186,18 @@ mod tests {
     fn contains_test_for_search_key_that_doesnt_exist() {
         let mut rht = RobinHoodHashTable::<KeyValuePair<&str, i64>>::new(0.9, 3);
         assert_eq!(rht.contains("pine tree"), false);
+    }
+
+    #[test]
+    fn remove_key_from_table() {
+        let mut rht = RobinHoodHashTable::new(0.9, 3);
+        rht.insert("pine tree", 1);
+        assert_eq!(rht.contains("pine tree"), true);
+
+        rht.remove("pine tree");
+
+        assert_eq!(rht.contains("pine tree"), false);
+
+        assert_eq!(rht.remove("pine tree"), false);
     }
 }
