@@ -124,7 +124,10 @@ pub mod rh_hash_table {
                         break;
                     }
                     _ => {
-                        panic!("something went wrong while trying to delete {} from table!!!", key);
+                        panic!(
+                            "something went wrong while trying to delete {} from table!!!",
+                            key
+                        );
                     }
                 }
             }
@@ -157,7 +160,7 @@ pub mod rh_hash_table {
                         break;
                     }
 
-                    _ => panic!("something went wrong while searching for {} in table", key)
+                    _ => panic!("something went wrong while searching for {} in table", key),
                 }
             }
             false
