@@ -1,5 +1,4 @@
 pub mod rh_hash_table {
-    use std::borrow::Borrow;
     use std::collections::hash_map::{DefaultHasher, Keys, RandomState};
     use std::fmt::Display;
     use std::hash::{BuildHasher, Hash, Hasher};
@@ -67,6 +66,7 @@ pub mod rh_hash_table {
                             key_value = temp;
                         }
 
+                        key_value.probing_sequence_length += 1;
                         hash_id += 1;
                         if hash_id >= self.capacity {
                             hash_id = 0;
@@ -101,20 +101,32 @@ pub mod rh_hash_table {
                 }
             }
         }
+
         pub fn remove(&mut self, key: K) -> bool {
             let mut hasher = self.hasher_state.build_hasher();
             key.hash(&mut hasher);
             let mut hash_id = hasher.finish() as usize % self.capacity;
-            while !self.table[hash_id].is_none() {
-                if self.table[hash_id].as_ref().unwrap().key == key {
-                    self.table[hash_id] = None;
-                    return true;
+            loop {
+                let mut bucket = self.table[hash_id].clone();
+                match bucket {
+                    Some(..) => {
+                        if bucket.unwrap().key == key {
+                            self.table[hash_id] = None;
+                            return true;
+                        }
+
+                        hash_id += 1;
+                        if hash_id >= self.capacity {
+                            hash_id = 0;
+                        }
+                    }
+                    None => {
+                        break;
+                    }
+                    _ => {
+                        panic!("something went wrong while trying to delete {} from table!!!", key);
+                    }
                 }
-                if hash_id >= self.capacity {
-                    hash_id = 0;
-                    continue;
-                }
-                hash_id += 1;
             }
             false
         }
@@ -124,22 +136,28 @@ pub mod rh_hash_table {
             let mut hasher = self.hasher_state.build_hasher();
             key.hash(&mut hasher);
             let mut hash_id = hasher.finish() as usize % self.capacity;
-            while !self.table[hash_id].is_none() {
-                if self.table[hash_id].as_ref().unwrap().key == key {
-                    return true;
-                }
-                if probing_sequence_len
-                    > self.table[hash_id]
-                        .as_ref()
-                        .unwrap()
-                        .probing_sequence_length
-                {
-                    return false;
-                }
-                probing_sequence_len += 1;
-                hash_id += 1;
-                if hash_id >= self.capacity {
-                    hash_id = 0;
+            loop {
+                let mut bucket = self.table[hash_id].as_ref();
+                match bucket {
+                    Some(..) => {
+                        if probing_sequence_len > bucket.unwrap().probing_sequence_length {
+                            return false;
+                        }
+                        if bucket.unwrap().key == key {
+                            return true;
+                        }
+                        probing_sequence_len += 1;
+                        hash_id += 1;
+                        if hash_id >= self.capacity {
+                            hash_id = 0;
+                        }
+                    }
+
+                    None => {
+                        break;
+                    }
+
+                    _ => panic!("something went wrong while searching for {} in table", key)
                 }
             }
             false
